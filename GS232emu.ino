@@ -1,6 +1,7 @@
 #include <TimerOne.h>
 
 int debug = 0;
+int skip_init = 1;
 
 int led = 13;
 int phase1 = 9;
@@ -27,6 +28,9 @@ int cnt_periods = 0;
 float fullcircle_periods = 3355;
 float onedegree_periods = fullcircle_periods / 360;
 long cur_pos_periods = 0;
+
+int el_cur_pos = 0;
+
 signed int target_periods = -1;
 
 String inputString = "";         // a string to hold incoming data
@@ -51,16 +55,17 @@ void setup() {
 
   timer_init(hz);
 
-
-  if(debug > 0) Serial.println("init");
-  rotate_left();
-  while(rotation > 0) {
-    delay(20);
-  }
-  cur_pos_periods = 0;
+  if(skip_init == 0) {
+    if(debug > 0) Serial.println("init");
+    rotate_left();
+    while(rotation > 0) {
+      delay(20);
+    }
+    cur_pos_periods = 0;
+    }
   init_status = 0;
 
-  prompt();
+  //prompt();
 }
 
 void loop() {
@@ -70,46 +75,36 @@ void loop() {
     
     if(inputString.startsWith("R")) {
       rotate_right();
-    }
-    
-    if(inputString.startsWith("L")) {
+    } else if(inputString.startsWith("L")) {
       rotate_left();
-    }
-    
-    if(inputString.startsWith("A")) {
+    } else if(inputString.startsWith("A")) {
       rotate_stop();
-    }
-
-    if(inputString.startsWith("S")) {
+    } else if(inputString.startsWith("S")) {
       rotate_stop();
-    }
-
-    if(inputString.startsWith("C")) {
+    } else if(inputString.startsWith("C2")) {
+      azel_get_position();
+    } else if(inputString.startsWith("C")) {
       az_get_position();
-    }
-
-    if(inputString.startsWith("I")) {
+    } else if(inputString.startsWith("I")) {
       flip_debug();
-    }
-
-    if(inputString.startsWith("H")) {
+    } else if(inputString.startsWith("H")) {
       help();
-    }
-
-    if(inputString.startsWith("M")) {
+    } else if(inputString.startsWith("M")) {
       float in_degrees = string_to_int(inputString.substring(1));
       rotate_to(onedegree_periods * in_degrees);
-    }
-
-    if(inputString.startsWith("X")) {
+    } else if(inputString.startsWith("X")) {
       int in_speed = string_to_int(inputString.substring(1));
       az_set_speed(in_speed);
+    } else {
+      Serial.print("? >");
     }
 
+    Serial.print("\r");
+    
     // clear the string:
     inputString = "";
     stringComplete = false;
-    prompt();
+    //prompt();
   }
 /*
   if (Serial.available() > 0) {
@@ -340,6 +335,20 @@ void az_get_position() {
   float cur_degrees = cur_pos_periods / onedegree_periods;
   if(cur_degrees < 100) Serial.print("0");
   if(cur_degrees < 10) Serial.print("0");
-  Serial.println(cur_degrees);
+  Serial.println(cur_degrees, 0);
 }
+
+void azel_get_position() {
+  // Not getting sprintf to work. Resorting to this rather ugly formatting..
+  Serial.print("+0");
+  float cur_degrees = cur_pos_periods / onedegree_periods;
+  if(cur_degrees < 100) Serial.print("0");
+  if(cur_degrees < 10) Serial.print("0");
+  Serial.print(cur_degrees, 0);
+  Serial.print("+0");
+  if(el_cur_pos < 100) Serial.print("0");
+  if(el_cur_pos  < 10) Serial.print("0");
+  Serial.println(el_cur_pos);
+}
+
 
