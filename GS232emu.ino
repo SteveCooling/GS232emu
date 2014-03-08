@@ -13,7 +13,7 @@ int p1s = 0;
 int p2s = 0;
 int p3s = 0;
 
-int hz = 25;
+int hz = 60;
 int steps = 6;
 int cur_step = 0;
 
@@ -24,10 +24,10 @@ int init_status = 1;
 int cnt_periods = 0;
 
 // Gearing definitions
-int fullcircle_periods = 3706;
+float fullcircle_periods = 3355;
 float onedegree_periods = fullcircle_periods / 360;
 long cur_pos_periods = 0;
-signed long target_periods = -1;
+signed int target_periods = -1;
 
 String inputString = "";         // a string to hold incoming data
 boolean stringComplete = false;  // whether the string is complete
@@ -53,10 +53,10 @@ void setup() {
 
 
   if(debug > 0) Serial.println("init");
-  //rotate_left();
-  //while(rotation > 0) {
-  //  delay(20);
-  //}
+  rotate_left();
+  while(rotation > 0) {
+    delay(20);
+  }
   cur_pos_periods = 0;
   init_status = 0;
 
@@ -80,17 +80,30 @@ void loop() {
       rotate_stop();
     }
 
+    if(inputString.startsWith("S")) {
+      rotate_stop();
+    }
+
     if(inputString.startsWith("C")) {
       az_get_position();
     }
 
-    if(inputString.startsWith("D")) {
+    if(inputString.startsWith("I")) {
       flip_debug();
     }
 
+    if(inputString.startsWith("H")) {
+      help();
+    }
+
     if(inputString.startsWith("M")) {
-      int in_degrees = string_to_int(inputString.substring(2));
-      rotate_to(in_degrees * onedegree_periods);
+      float in_degrees = string_to_int(inputString.substring(1));
+      rotate_to(onedegree_periods * in_degrees);
+    }
+
+    if(inputString.startsWith("X")) {
+      int in_speed = string_to_int(inputString.substring(1));
+      az_set_speed(in_speed);
     }
 
     // clear the string:
@@ -207,21 +220,24 @@ void tick() {
       }
       if(debug > 0) Serial.println(cur_pos_periods);
       if(debug > 0) Serial.println(target_periods);
-      // Stop rotation if target is hit.
-      if(target_periods > -1 && cur_pos_periods == target_periods) {
-        if(debug > 0) Serial.println("HT");
-        rotate_stop();
-        target_periods = -1;
-      }
       
-      // Stop at edges
-      if(init_status == 0 && cur_pos_periods <= 0) {
-        if(debug > 0) Serial.println("H0");
-        rotate_stop();
-      }
-      if(init_status == 0 && cur_pos_periods >= fullcircle_periods) {
-        if(debug > 0) Serial.println("H360");
-        rotate_stop();
+      if(init_status == 0) {
+        // Stop rotation if target is hit.
+        if(target_periods > -1 && cur_pos_periods == target_periods) {
+          if(debug > 0) Serial.println("HT");
+          rotate_stop();
+          target_periods = -1;
+        }
+        
+        // Stop at edges
+        if(cur_pos_periods <= 0) {
+          if(debug > 0) Serial.println("H0");
+          rotate_stop();
+        }
+        if(cur_pos_periods >= fullcircle_periods) {
+          if(debug > 0) Serial.println("H360");
+          rotate_stop();
+        }
       }
     
       // Safeguard
@@ -250,6 +266,8 @@ void help() {
   Serial.println("L  CCW Rotation");
   Serial.println("A  CW / CCW Rotation Stop");
   Serial.println("C  Current azimuth");
+  Serial.println("M  Antenna direction setting. MXXX");
+  Serial.println("X  Rotation speed. X x, x=1-4");
   //Serial.println("C  Antenna direction value");
   //Serial.println("M  Antenna direction setting. M###");
 }
@@ -257,14 +275,14 @@ void help() {
 void rotate_right() {
   if(debug > 0) Serial.println("RR");
   cnt_periods = 0;
-  if(cur_pos_periods >= fullcircle_periods) return;
+  if(init_status == 0 && cur_pos_periods >= fullcircle_periods) return;
   rotation = 1;
 }
 
 void rotate_left() {
   if(debug > 0) Serial.println("RL");
   cnt_periods = 0;
-  if(cur_pos_periods <= 0) return;
+  if(init_status == 0 && cur_pos_periods <= 0) return;
   rotation = 2;
 }
 
@@ -297,10 +315,29 @@ void flip_debug() {
   }
 }
 
+void az_set_speed(int setting) {
+  switch(setting) {
+    case 1:
+      timer_init(20);
+      break;
+    case 2:
+      timer_init(33);
+      break;
+    case 3:
+      timer_init(46);
+      break;
+    case 4:
+      timer_init(60);
+      break;
+    default:
+      timer_init(setting);
+  }
+}
+
 void az_get_position() {
   // Not getting sprintf to work. Resorting to this rather ugly formatting..
   Serial.print("+0");
-  int cur_degrees = cur_pos_periods / onedegree_periods;
+  float cur_degrees = cur_pos_periods / onedegree_periods;
   if(cur_degrees < 100) Serial.print("0");
   if(cur_degrees < 10) Serial.print("0");
   Serial.println(cur_degrees);
