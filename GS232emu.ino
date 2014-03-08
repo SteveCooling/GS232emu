@@ -1,5 +1,7 @@
 #include <TimerOne.h>
 
+int debug = 0;
+
 int led = 13;
 int phase1 = 9;
 int phase2 = 10;
@@ -11,16 +13,18 @@ int p1s = 0;
 int p2s = 0;
 int p3s = 0;
 
-int hz = 20;
+int hz = 25;
 int steps = 6;
 int cur_step = 0;
 
 int rotation = 0;
 
+int init_status = 1;
+
 int cnt_periods = 0;
 
 // Gearing definitions
-int fullcircle_periods = 100; //3706;
+int fullcircle_periods = 3706;
 float onedegree_periods = fullcircle_periods / 360;
 long cur_pos_periods = 0;
 signed long target_periods = -1;
@@ -48,13 +52,13 @@ void setup() {
   timer_init(hz);
 
 
-  Serial.println("Initializing...");
-  rotate_left();
-  while(rotation > 0) {
-    delay(20);
-  }
+  if(debug > 0) Serial.println("init");
+  //rotate_left();
+  //while(rotation > 0) {
+  //  delay(20);
+  //}
   cur_pos_periods = 0;
-  Serial.println("Ready...");
+  init_status = 0;
 
   prompt();
 }
@@ -72,18 +76,23 @@ void loop() {
       rotate_left();
     }
     
-    if(inputString.startsWith("M")) {
-      rotate_to(cur_pos_periods + 50);
-    }
-
-    if(inputString.startsWith("N")) {
-      rotate_to(cur_pos_periods - 50);
-    }
-
     if(inputString.startsWith("A")) {
       rotate_stop();
     }
-    
+
+    if(inputString.startsWith("C")) {
+      az_get_position();
+    }
+
+    if(inputString.startsWith("D")) {
+      flip_debug();
+    }
+
+    if(inputString.startsWith("M")) {
+      int in_degrees = string_to_int(inputString.substring(2));
+      rotate_to(in_degrees * onedegree_periods);
+    }
+
     // clear the string:
     inputString = "";
     stringComplete = false;
@@ -152,12 +161,12 @@ void tick() {
   int cur_step1;
   int cur_step2;
   int cur_step3;
-  
+
   if(rotation == 1) {
     cur_step1 = cur_step % steps;
     cur_step2 = (cur_step + ((steps / 3) * 1)) % steps;
     cur_step3 = (cur_step + ((steps / 3) * 2)) % steps;
-  } else {
+  } else if (rotation == 2) {
     cur_step1 = cur_step % steps;
     cur_step2 = (cur_step + ((steps / 3) * 2)) % steps;
     cur_step3 = (cur_step + ((steps / 3) * 1)) % steps;
@@ -196,19 +205,39 @@ void tick() {
       if(rotation == 2) {
         cur_pos_periods --;
       }
+      if(debug > 0) Serial.println(cur_pos_periods);
+      if(debug > 0) Serial.println(target_periods);
       // Stop rotation if target is hit.
       if(target_periods > -1 && cur_pos_periods == target_periods) {
-        Serial.println("Target hit...");
+        if(debug > 0) Serial.println("HT");
         rotate_stop();
         target_periods = -1;
       }
+      
+      // Stop at edges
+      if(init_status == 0 && cur_pos_periods <= 0) {
+        if(debug > 0) Serial.println("H0");
+        rotate_stop();
+      }
+      if(init_status == 0 && cur_pos_periods >= fullcircle_periods) {
+        if(debug > 0) Serial.println("H360");
+        rotate_stop();
+      }
+    
       // Safeguard
       if(cnt_periods > fullcircle_periods) {
-        Serial.println("Safeguard stop...");
+        if(debug > 0) Serial.println("SS");
         rotate_stop();
       }
     }
   }
+}
+
+int string_to_int(String input) {
+  char charBuf[10];
+  input.toCharArray(charBuf, 10);
+  int output = atoi(charBuf);
+  return output;
 }
 
 /*********************************
@@ -220,42 +249,60 @@ void help() {
   Serial.println("R  CW Rotation");
   Serial.println("L  CCW Rotation");
   Serial.println("A  CW / CCW Rotation Stop");
+  Serial.println("C  Current azimuth");
   //Serial.println("C  Antenna direction value");
   //Serial.println("M  Antenna direction setting. M###");
 }
 
 void rotate_right() {
-  Serial.println("Rotating right...");
+  if(debug > 0) Serial.println("RR");
   cnt_periods = 0;
+  if(cur_pos_periods >= fullcircle_periods) return;
   rotation = 1;
 }
 
 void rotate_left() {
-  Serial.println("Rotating left...");
+  if(debug > 0) Serial.println("RL");
   cnt_periods = 0;
+  if(cur_pos_periods <= 0) return;
   rotation = 2;
 }
 
 void rotate_stop() {
-  Serial.println("Rotate stop...");
+  if(debug > 0) Serial.println("RS");
   rotation = 0;
-  Serial.println(cnt_periods);
-  Serial.println(cur_pos_periods);
+  target_periods = -1;
+  if(debug > 0) Serial.println(cnt_periods);
+  if(debug > 0) Serial.println(cur_pos_periods);
 }
 
 void rotate_to(long target) {
-  Serial.println("Rotate to...");
+  if(debug > 0) Serial.println("RT");
   target_periods = target;
-  if(cur_pos_periods == target_periods) {
-    rotate_stop();
-  }
 
   if(cur_pos_periods > target_periods) {
-    rotate_right();
-  }
-
-  if(cur_pos_periods < target_periods) {
     rotate_left();
+  } else if(cur_pos_periods < target_periods) {
+    rotate_right();
+  } else {
+    rotate_stop();
   }
+}
+
+void flip_debug() {
+  if(debug == 0) {
+    debug = 1;
+  } else {
+    debug = 0;
+  }
+}
+
+void az_get_position() {
+  // Not getting sprintf to work. Resorting to this rather ugly formatting..
+  Serial.print("+0");
+  int cur_degrees = cur_pos_periods / onedegree_periods;
+  if(cur_degrees < 100) Serial.print("0");
+  if(cur_degrees < 10) Serial.print("0");
+  Serial.println(cur_degrees);
 }
 
