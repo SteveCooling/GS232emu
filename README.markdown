@@ -1,7 +1,7 @@
 GS232emu
 ========
 
-Copyright (c) 2012-2014 by Morten Johansen <morten@bzzt.no>
+Copyright (c) 2012-2014 by LA1FTA Morten Johansen <morten@bzzt.no>
 
 Description
 -----------
