@@ -1,12 +1,16 @@
 GS232emu
 ========
 
-Copyright (c) 2012 by Morten Johansen <morten@bzzt.no>
+Copyright (c) 2012-2014 by Morten Johansen <morten@bzzt.no>
 
 Description
 -----------
 
-Very early work on a GS232 compatible Arduino rotor controller.
+Arduino code for antenna rotator logic. For use with H-bridges and a 3-phase motor driven as a stepper. Tries to emulate a Yaesu GS-232A controller.
+
+Quality of emulation is not yet verified, but the command interface works. Supports rotation to specific azimuth, fetching current position and speed control.
+
+Lacks some work for supporting the commands related to elevation.
 
 License
 -------
