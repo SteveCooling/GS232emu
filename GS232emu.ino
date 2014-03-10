@@ -8,13 +8,16 @@ int phase1 = 9;
 int phase2 = 10;
 int phase3 = 11;
 
-int speedDial = 0;
-
 int p1s = 0;
 int p2s = 0;
 int p3s = 0;
 
+int hz_max = 65;
+int hz_min = 15;
 int hz = 60;
+int autospeed = 0;
+float ramp_speed = 0.6;
+
 int steps = 6;
 int cur_step = 0;
 
@@ -32,6 +35,7 @@ long cur_pos_periods = 0;
 int el_cur_pos = 0;
 
 signed int target_periods = -1;
+int halfway_periods = -1;
 
 String inputString = "";         // a string to hold incoming data
 boolean stringComplete = false;  // whether the string is complete
@@ -78,9 +82,29 @@ void loop() {
     } else if(inputString.startsWith("L")) {
       rotate_left();
     } else if(inputString.startsWith("A")) {
-      rotate_stop();
+      if(autospeed == 1) {
+        if(rotation == 1) {
+          halfway_periods = cur_pos_periods;
+          target_periods = cur_pos_periods + (hz_max - hz_min);
+        } else if(rotation == 2) {
+          halfway_periods = cur_pos_periods;
+          target_periods = cur_pos_periods - (hz_max - hz_min);
+        }
+      } else {
+        rotate_stop();
+      }
     } else if(inputString.startsWith("S")) {
-      rotate_stop();
+      if(autospeed == 1) {
+        if(rotation == 1) {
+          halfway_periods = cur_pos_periods;
+          target_periods = cur_pos_periods + (hz_max - hz_min);
+        } else if(rotation == 2) {
+          halfway_periods = cur_pos_periods;
+          target_periods = cur_pos_periods - (hz_max - hz_min);
+        }
+      } else {
+        rotate_stop();
+      }
     } else if(inputString.startsWith("C2")) {
       azel_get_position();
     } else if(inputString.startsWith("C")) {
@@ -197,10 +221,6 @@ void tick() {
   // Toggle LED
   digitalWrite(led, digitalRead(led) ^1);
 
-  //Serial.println(analogRead(speedDial));
-  //hz = analogRead(speedDial) / 21;
-  //setWait(hz);
-
   // increment "time" and roll over
   cur_step++;
   if(cur_step == steps) {
@@ -215,6 +235,40 @@ void tick() {
       }
       if(debug > 0) Serial.println(cur_pos_periods);
       if(debug > 0) Serial.println(target_periods);
+      
+      if(autospeed == 1) {
+        // Take care of ramping up speed
+        if(cnt_periods < ((hz_max - hz_min) * ramp_speed)) {
+          // Within ramp-up "area". Calculate speed to set.
+          int now_hz = (cnt_periods / ramp_speed) + hz_min;
+          timer_init(now_hz);
+        }
+        // Ramp down speed
+        if(rotation == 1) {
+          // When rotating right
+          // Are we nearing target?
+          if(target_periods > -1 && cur_pos_periods > halfway_periods && cur_pos_periods > (target_periods - ((hz_max - hz_min) * ramp_speed))) {
+            int now_hz = ((target_periods - cur_pos_periods) / ramp_speed) + hz_min;
+            timer_init(now_hz);
+          } else if(cur_pos_periods > (fullcircle_periods - ((hz_max - hz_min) * ramp_speed))) {
+            // Nearing max rotation
+            int now_hz = ((fullcircle_periods - cur_pos_periods) / ramp_speed) + hz_min;
+            timer_init(now_hz);
+          }
+        } else if(rotation == 2) {
+          // Rotating left
+          if(target_periods > -1 && cur_pos_periods < halfway_periods && cur_pos_periods < (target_periods + ((hz_max - hz_min) * ramp_speed))) {
+            // Nearing target
+            int now_hz = ((cur_pos_periods - target_periods) / ramp_speed) + hz_min;
+            timer_init(now_hz);
+          } else if(cur_pos_periods < ((hz_max - hz_min) * ramp_speed)) {
+            // Nearing min rotation
+            int now_hz = (cur_pos_periods / ramp_speed) + hz_min;
+            timer_init(now_hz);
+          }
+        }
+        
+      }
       
       if(init_status == 0) {
         // Stop rotation if target is hit.
@@ -294,8 +348,10 @@ void rotate_to(long target) {
   target_periods = target;
 
   if(cur_pos_periods > target_periods) {
+    halfway_periods = cur_pos_periods - ((cur_pos_periods - target_periods) / 2);
     rotate_left();
   } else if(cur_pos_periods < target_periods) {
+    halfway_periods = cur_pos_periods + ((target_periods - cur_pos_periods) / 2);
     rotate_right();
   } else {
     rotate_stop();
@@ -313,16 +369,24 @@ void flip_debug() {
 void az_set_speed(int setting) {
   switch(setting) {
     case 1:
+      autospeed = 0;
       timer_init(20);
       break;
     case 2:
+      autospeed = 0;
       timer_init(33);
       break;
     case 3:
+      autospeed = 0;
       timer_init(46);
       break;
     case 4:
+      autospeed = 0;
       timer_init(60);
+      break;
+    case 5:
+      autospeed = 1;
+      timer_init(20);
       break;
     default:
       timer_init(setting);
